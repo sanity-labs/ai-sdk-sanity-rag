@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check:
+    name: Lint, typecheck, and build
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SANITY_PROJECT_ID: demo
+      NEXT_PUBLIC_SANITY_DATASET: production
+      SANITY_API_READ_TOKEN: ci-read-token
+      SANITY_API_WRITE_TOKEN: ci-write-token
+      AI_GATEWAY_API_KEY: ci-ai-gateway-key
+      SANITY_CONTEXT_SLUG: knowledge-base
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build frontend
+        run: pnpm build

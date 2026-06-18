@@ -1,0 +1,16 @@
+import {defineCliConfig} from 'sanity/cli'
+
+const projectId = process.env.SANITY_STUDIO_PROJECT_ID
+const dataset = process.env.SANITY_STUDIO_DATASET || 'production'
+
+if (!projectId) {
+  throw new Error('Missing SANITY_STUDIO_PROJECT_ID. Copy studio/.env.example to studio/.env.')
+}
+
+export default defineCliConfig({
+  api: {
+    projectId,
+    dataset,
+  },
+  studioHost: 'ai-sdk-sanity-rag',
+})
