@@ -8,6 +8,12 @@ export const env = createEnv({
     SANITY_API_WRITE_TOKEN: z.string().min(1),
     AI_GATEWAY_API_KEY: z.string().min(1),
     SANITY_CONTEXT_SLUG: z.string().min(1).default('knowledge-base'),
+    // Off by default: the addResource tool writes to a Content Lake shared by
+    // every user of the deployment, so opt in deliberately.
+    ENABLE_CHAT_WRITES: z
+      .string()
+      .optional()
+      .transform((value) => value === 'true'),
   },
   client: {
     NEXT_PUBLIC_SANITY_PROJECT_ID: z.string().min(1),
@@ -19,6 +25,7 @@ export const env = createEnv({
     SANITY_API_WRITE_TOKEN: process.env.SANITY_API_WRITE_TOKEN,
     AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
     SANITY_CONTEXT_SLUG: process.env.SANITY_CONTEXT_SLUG,
+    ENABLE_CHAT_WRITES: process.env.ENABLE_CHAT_WRITES,
     NEXT_PUBLIC_SANITY_PROJECT_ID: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID,
     NEXT_PUBLIC_SANITY_DATASET: process.env.NEXT_PUBLIC_SANITY_DATASET,
   },

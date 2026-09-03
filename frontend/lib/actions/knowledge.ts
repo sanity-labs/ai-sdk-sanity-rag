@@ -1,6 +1,21 @@
 import {writeClient} from '@/lib/sanity/client'
 
-export async function createKnowledgeArticle({content}: {content: string}) {
+/**
+ * Creates a `knowledgeArticle` from something the user explicitly asked the
+ * chat to remember. Every document is stamped with `source: 'chat'` plus the
+ * originating thread so user-submitted knowledge stays distinguishable from
+ * seeded or Studio-authored content when it comes back through retrieval.
+ *
+ * @param content - The text the user asked to save.
+ * @param threadId - The chat thread that requested the write.
+ */
+export async function createKnowledgeArticle({
+  content,
+  threadId,
+}: {
+  content: string
+  threadId: string
+}) {
   const trimmedContent = content.trim()
 
   if (trimmedContent.length < 10) {
@@ -18,11 +33,15 @@ export async function createKnowledgeArticle({content}: {content: string}) {
     title,
     content: trimmedContent,
     category: 'personal',
+    source: 'chat',
+    chatThreadId: threadId,
+    submittedAt: new Date().toISOString(),
   })
 
   return {
     id: document._id,
     title: document.title,
-    message: 'Knowledge article added to your Content Lake.',
+    content: document.content,
+    message: `Saved to the knowledge base as "${document.title}". Tell the user exactly what was stored.`,
   }
 }

@@ -32,16 +32,53 @@ export const knowledgeArticle = defineType({
         ],
       },
     }),
+    defineField({
+      name: 'source',
+      title: 'Source',
+      type: 'string',
+      description:
+        'Where this article came from. The chat sets "chat" on everything its addResource tool creates so user-submitted knowledge stays distinguishable from curated content.',
+      options: {
+        list: [
+          {title: 'Studio', value: 'studio'},
+          {title: 'Seed data', value: 'seed'},
+          {title: 'Chat (addResource)', value: 'chat'},
+        ],
+        layout: 'radio',
+      },
+      initialValue: 'studio',
+    }),
+    defineField({
+      name: 'chatThreadId',
+      title: 'Chat thread',
+      type: 'string',
+      description: 'The chat thread that asked to save this article.',
+      readOnly: true,
+      hidden: ({document}) => document?.source !== 'chat',
+    }),
+    defineField({
+      name: 'submittedAt',
+      title: 'Submitted at',
+      type: 'datetime',
+      readOnly: true,
+      hidden: ({document}) => document?.source !== 'chat',
+    }),
   ],
   preview: {
     select: {
       title: 'title',
       category: 'category',
+      source: 'source',
     },
-    prepare({title, category}) {
+    prepare({title, category, source}) {
+      const details = [
+        category ? `Category: ${category}` : undefined,
+        source === 'chat' ? 'Added via chat' : undefined,
+      ].filter(Boolean)
+
       return {
         title,
-        subtitle: category ? `Category: ${category}` : undefined,
+        subtitle: details.length > 0 ? details.join(' · ') : undefined,
       }
     },
   },
