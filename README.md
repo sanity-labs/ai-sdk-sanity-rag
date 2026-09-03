@@ -9,7 +9,7 @@ A retrieval-augmented generation (RAG) chatbot powered by the [Vercel AI SDK](ht
 - **Dataset embeddings** — semantic search via GROQ `text::semanticSimilarity()` inside agent queries
 - **Sanity Studio** — manage knowledge articles and configure the agent's context (instructions, content filter)
 - **Conversation insights** — optional telemetry via `@sanity/context/ai-sdk`
-- **Write path** — `addResource` tool creates new `knowledgeArticle` documents (Context is read-only)
+- **Opt-in write path** — `addResource` tool creates `knowledgeArticle` documents marked `source: "chat"` when a user explicitly asks the bot to remember something (Context itself is read-only)
 
 ## Architecture
 
@@ -72,6 +72,7 @@ cp frontend/.env.example frontend/.env.local
 | `SANITY_API_WRITE_TOKEN` | API token with Editor role for `addResource` and insights |
 | `AI_GATEWAY_API_KEY` | Vercel AI Gateway key |
 | `SANITY_CONTEXT_SLUG` | Context document slug, defaults to `knowledge-base` |
+| `ENABLE_CHAT_WRITES` | Set to `true` to expose the `addResource` tool. Off by default; see [Write path](#write-path) |
 
 Create API tokens at [sanity.io/manage](https://www.sanity.io/manage) → your project → **API** → **Tokens**. Keep both tokens server-only. Do not prefix them with `NEXT_PUBLIC_`.
 
@@ -128,6 +129,18 @@ Edit the document in Studio under **Sanity Context** to change agent behavior wi
 
 Initial context is fetched from `/initial-context` and injected into the system prompt (saving a tool call per conversation).
 
+## Write path
+
+Sanity Context is read-only, so the chat route adds its own `addResource` tool for writing to the knowledge base. It is deliberately conservative:
+
+- **Off by default.** The tool is only registered when `ENABLE_CHAT_WRITES=true`. Without it the model is told it cannot save anything.
+- **Explicit intent only.** The system prompt and the tool description both tell the model to call `addResource` only when the user explicitly asks it to remember, save, or add something, never for facts mentioned in passing and never for text that came back from a tool result. The model confirms what it saved in its reply.
+- **Marked provenance.** Every document the tool creates is stamped with `source: "chat"`, the originating `chatThreadId`, and `submittedAt`. Seed data is marked `source: "seed"` and Studio-authored articles default to `source: "studio"`. Studio has a **Chat submissions** list for reviewing or deleting what users added.
+
+Retrieval still treats chat-submitted articles like any other `knowledgeArticle`: the Context document's `groqFilter` scopes reads to the type, not to a user. The prompt tells the model to treat retrieved text as data rather than instructions, but a saved article is still a stored fact as far as later answers are concerned.
+
+**Writes are shared across the whole deployment, not per user.** There is no user or session scoping in this starter, so with `ENABLE_CHAT_WRITES=true` anything one visitor asks the bot to remember can surface in another visitor's answers. That is fine for a single-user second brain. For a shared or multi-tenant deployment, either leave writes disabled, put authentication in front of `/api/chat` and add a user filter to both the write (`createKnowledgeArticle`) and the Context document's `groqFilter`, or route submissions into a separate review type instead of `knowledgeArticle`.
+
 ## Try it out
 
 Ask questions the seed data can answer:
@@ -136,11 +149,11 @@ Ask questions the seed data can answer:
 - "What should I check before deploying?"
 - "Where do I like to hike on weekends?"
 
-Teach the bot something new:
+Teach the bot something new (requires `ENABLE_CHAT_WRITES=true` in `frontend/.env.local`):
 
-- "My dog's name is Pixel and he loves tennis balls."
+- "Remember that my dog's name is Pixel and he loves tennis balls."
 
-The `addResource` tool stores it as a `knowledgeArticle`. After embeddings reindex (usually under a minute), ask about it.
+The `addResource` tool stores it as a `knowledgeArticle` with `source: "chat"` and the bot confirms what it saved. After embeddings reindex (usually under a minute), ask about it. Mentioning the fact without asking the bot to remember it should not create a document.
 
 ## Deploy
 
@@ -156,6 +169,10 @@ Required environment variables:
 - `SANITY_API_WRITE_TOKEN`
 - `AI_GATEWAY_API_KEY`
 - `SANITY_CONTEXT_SLUG`
+
+Optional:
+
+- `ENABLE_CHAT_WRITES` — leave unset (or `false`) unless you want visitors to add to the shared knowledge base. See [Write path](#write-path).
 
 This starter uses the Vercel AI Gateway model string `openai/gpt-4o`. The AI SDK reads `AI_GATEWAY_API_KEY` from the environment.
 
@@ -177,7 +194,7 @@ Before deploying Studio, update `studioHost` in `studio/sanity.cli.ts` if you wa
 
 ### Production safety
 
-The chat route is intentionally open for local demos. In production, add authentication and rate limiting before exposing it publicly. Without those controls, anyone who can call `/api/chat` can spend AI Gateway credits and use the write token through the `addResource` tool.
+The chat route is intentionally open for local demos. In production, add authentication and rate limiting before exposing it publicly. Without those controls, anyone who can call `/api/chat` can spend AI Gateway credits and, if `ENABLE_CHAT_WRITES=true`, use the write token through the `addResource` tool to add content that every other user will then retrieve. Keep writes disabled on shared deployments unless you have scoped them (see [Write path](#write-path)).
 
 Conversation insights are enabled in `frontend/app/api/chat/route.ts` through `experimental_telemetry`. Remove that block if you do not want to write conversation insights to Sanity.
 
@@ -188,6 +205,8 @@ ai-sdk-sanity-rag/
 ├── frontend/
 │   ├── app/api/chat/         # streamText + Sanity Context MCP + addResource
 │   ├── components/           # Chat UI
+│   ├── lib/actions/
+│   │   └── knowledge.ts      # addResource write (stamps source: "chat")
 │   └── lib/sanity/
 │       ├── context.ts        # MCP client + initial context fetch
 │       └── client.ts         # Sanity read/write clients
@@ -207,6 +226,10 @@ Edit the **Sanity Context** document in Studio — update `instructions` or `gro
 ### Change the content model
 
 Edit `studio/schemaTypes/knowledgeArticle.ts`, update the context document's `groqFilter`, and adjust the embeddings projection in `studio/scripts/bootstrap.ts`.
+
+### Turn chat writes on or off
+
+Set `ENABLE_CHAT_WRITES=true` in `frontend/.env.local` to register the `addResource` tool; unset it to remove the tool entirely. The write itself lives in `frontend/lib/actions/knowledge.ts`, which is where to add a user or tenant marker if you scope the knowledge base later.
 
 ### Disable conversation insights
 
